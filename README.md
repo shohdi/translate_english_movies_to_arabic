@@ -17,6 +17,8 @@ Models are cached locally on first use, then loaded from local files only (offli
 - Preserve exact subtitle timing from the English transcription.
 - Download models once into a local cache and reuse them offline.
 - Interactive mode (asks for input path and language) or CLI arguments.
+- Logs progress for every subtitle (shows current English + translated line).
+- Writes translated `.srt` on the fly and resumes from last completed subtitle if interrupted.
 
 ### Requirements 🧰
 
@@ -118,6 +120,8 @@ You get:
 - Translation is done subtitle-by-subtitle to keep timings aligned.
 - Larger Whisper models improve quality but are slower.
 - `.local_models/` is git-ignored, so model weights are never pushed to your repo.
+- If translation stops mid-run, re-run the same command and it continues from the last saved subtitle.
+- On resume, if `movie.en.srt` already exists, the script reuses it and skips Whisper to keep subtitle order stable.
 
 ## الدليل العربي 🇸🇦
 
@@ -136,6 +140,9 @@ You get:
 - الحفاظ على نفس التوقيت بدقة.
 - تنزيل النماذج مرة واحدة وإعادة استخدامها محليًا بدون إنترنت.
 - دعم الوضع التفاعلي أو التشغيل بالأوامر.
+- عرض التقدم لكل سطر ترجمة (النص الإنجليزي ثم النص المترجم).
+- الكتابة إلى ملف الترجمة بشكل مباشر أثناء العمل مع إمكانية الاستكمال بعد الانقطاع.
+- عند الاستكمال: إذا كان ملف `movie.en.srt` موجودًا، يتم استخدامه مباشرة بدون إعادة Whisper حتى يبقى ترتيب الأسطر ثابتًا.
 
 ### المتطلبات 🧰
 
