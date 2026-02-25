@@ -99,7 +99,7 @@ def extract_translated_text(pipe_output) -> str:
     return ""
 
 
-def split_long_text(text: str, max_words: int = 80) -> list[str]:
+def split_long_text(text: str, max_words: int = 800) -> list[str]:
     words = text.split()
     if len(words) <= max_words:
         return [text]
@@ -128,7 +128,7 @@ def translate_chunk(
             ],
         }
     ]
-    output = translator_pipe(messages, max_new_tokens=200, do_sample=False)
+    output = translator_pipe(messages, max_new_tokens=1000, do_sample=False)
     return extract_translated_text(output).replace("\n", " ").strip(" \"'")
 
 
@@ -138,7 +138,7 @@ def translate_paragraph(
     source_lang_code: str,
     target_lang_code: str,
 ) -> str:
-    chunks = split_long_text(paragraph_text, max_words=80)
+    chunks = split_long_text(paragraph_text, max_words=800)
     translated_chunks: list[str] = []
     for chunk in chunks:
         translated = translate_chunk(
