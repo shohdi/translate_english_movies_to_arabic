@@ -4,3 +4,6 @@ transformers>=4.48.0
 accelerate>=0.34.0
 sentencepiece>=0.2.0
 huggingface_hub>=0.26.0
+EbookLib>=0.18
+beautifulsoup4>=4.12.0
+lxml>=5.2.0
