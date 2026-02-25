@@ -19,6 +19,8 @@ Models are cached locally on first use, then loaded from local files only (offli
 - Interactive mode (asks for input path and language) or CLI arguments.
 - Logs progress for every subtitle (shows current English + translated line).
 - Writes translated `.srt` on the fly and resumes from last completed subtitle if interrupted.
+- Translate full EPUB books paragraph-by-paragraph with resume support.
+- Preserve EPUB images/media in translated output (images are kept as-is).
 
 ### Requirements 🧰
 
@@ -104,6 +106,26 @@ Custom local model cache directory:
 python movie_subtitle_translator.py --movie-path "C:\movies\my_film.mp4" --target-language "Arabic" --models-dir "D:\models_cache"
 ```
 
+### EPUB Book Translation 📚
+
+Translate an EPUB book from any language to any language:
+
+```powershell
+python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic"
+```
+
+It translates paragraph-by-paragraph, writes progress live to a text file, and can resume after interruption.
+Default outputs:
+
+- `C:\books\my_book.arabic.epub`
+- `C:\books\my_book.arabic.progress.txt`
+
+Custom output/progress paths:
+
+```powershell
+python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "ar-EG" --output-path "C:\books\my_book_ar.epub" --progress-path "C:\books\my_book_progress.txt"
+```
+
 ### Output Files 📁
 
 If input file is:
@@ -122,6 +144,7 @@ You get:
 - `.local_models/` is git-ignored, so model weights are never pushed to your repo.
 - If translation stops mid-run, re-run the same command and it continues from the last saved subtitle.
 - On resume, if `movie.en.srt` already exists, the script reuses it and skips Whisper to keep subtitle order stable.
+- EPUB translation uses chunked paragraph translation to stay safe with generation length limits.
 
 ## الدليل العربي 🇸🇦
 
@@ -143,6 +166,8 @@ You get:
 - عرض التقدم لكل سطر ترجمة (النص الإنجليزي ثم النص المترجم).
 - الكتابة إلى ملف الترجمة بشكل مباشر أثناء العمل مع إمكانية الاستكمال بعد الانقطاع.
 - عند الاستكمال: إذا كان ملف `movie.en.srt` موجودًا، يتم استخدامه مباشرة بدون إعادة Whisper حتى يبقى ترتيب الأسطر ثابتًا.
+- ترجمة كتب EPUB فقرة فقرة مع دعم الاستكمال من آخر نقطة.
+- الحفاظ على الصور والوسائط داخل ملف EPUB المترجم (بدون ترجمة الصور).
 
 ### المتطلبات 🧰
 
@@ -205,6 +230,20 @@ python movie_subtitle_translator.py --movie-path "C:\movies\my_film.mp4" --targe
 ```powershell
 python movie_subtitle_translator.py --movie-path "C:\movies\my_film.mp4" --target-language "Arabic" --models-dir "D:\models_cache"
 ```
+
+### ترجمة كتب EPUB 📚
+
+ترجمة كتاب EPUB من أي لغة إلى أي لغة:
+
+```powershell
+python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic"
+```
+
+البرنامج يترجم فقرة فقرة، ويكتب تقدم العمل في ملف نصي أثناء التشغيل، ويمكنه الاستكمال بعد الانقطاع.
+الملفات الافتراضية:
+
+- `C:\books\my_book.arabic.epub`
+- `C:\books\my_book.arabic.progress.txt`
 
 ### ملفات الإخراج 📁
 
