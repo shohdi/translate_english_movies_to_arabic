@@ -208,3 +208,4 @@ __marimo__/
 
 # Local model cache (Whisper + TranslateGemma)
 .local_models/
+.vscode/settings.json

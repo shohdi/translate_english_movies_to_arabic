@@ -10,11 +10,27 @@ from typing import Iterable
 import torch
 import whisper
 from huggingface_hub import snapshot_download
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import pipeline
 
 
 MODEL_ID = "google/translategemma-4b-it"
 DEFAULT_MODELS_DIR = Path(__file__).resolve().parent / ".local_models"
+LANGUAGE_CODE_MAP = {
+    "arabic": "ar-EG",
+    "english": "en",
+    "french": "fr",
+    "spanish": "es",
+    "german": "de",
+    "italian": "it",
+    "portuguese": "pt",
+    "russian": "ru",
+    "turkish": "tr",
+    "urdu": "ur",
+    "hindi": "hi",
+    "japanese": "ja",
+    "korean": "ko",
+    "chinese": "zh",
+}
 
 
 def format_srt_timestamp(seconds: float) -> str:
@@ -115,53 +131,90 @@ def ensure_local_translator_path(models_dir: Path) -> Path:
 
 
 def load_translator(local_model_path: Path):
-    tokenizer = AutoTokenizer.from_pretrained(
-        str(local_model_path),
-        local_files_only=True,
-    )
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     if torch.cuda.is_available():
-        model = AutoModelForCausalLM.from_pretrained(
-            str(local_model_path),
-            torch_dtype=torch.float16,
-            device_map="auto",
-            local_files_only=True,
-        )
-        device = None
+        dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     else:
-        model = AutoModelForCausalLM.from_pretrained(
-            str(local_model_path),
-            torch_dtype=torch.float32,
-            local_files_only=True,
-        )
-        device = -1
+        dtype = torch.float32
 
-    return pipeline(
-        "text-generation",
-        model=model,
-        tokenizer=tokenizer,
-        device=device,
-    )
+    try:
+        return pipeline(
+            "text-generation",
+            model=str(local_model_path),
+            device=device,
+            torch_dtype=dtype,
+            model_kwargs={"local_files_only": True},
+        )
+    except TypeError:
+        # Compatibility fallback for transformers versions that expect dtype.
+        return pipeline(
+            "text-generation",
+            model=str(local_model_path),
+            device=device,
+            dtype=dtype,
+            model_kwargs={"local_files_only": True},
+        )
+
+def extract_translated_text(pipe_output) -> str:
+    if not pipe_output:
+        return ""
+
+    first_item = pipe_output[0]
+    generated = first_item.get("generated_text")
+    if isinstance(generated, list) and generated:
+        last_item = generated[-1]
+        if isinstance(last_item, dict):
+            content = last_item.get("content", "")
+            if isinstance(content, str):
+                return content.strip()
+            if isinstance(content, list):
+                chunks: list[str] = []
+                for part in content:
+                    if isinstance(part, dict):
+                        text = part.get("text")
+                        if isinstance(text, str):
+                            chunks.append(text)
+                return " ".join(chunks).strip()
+    if isinstance(generated, str):
+        return generated.strip()
+    return ""
+
+def normalize_lang_code(language: str) -> str:
+    lang = language.strip().lower()
+    if lang in LANGUAGE_CODE_MAP:
+        return LANGUAGE_CODE_MAP[lang]
+    if len(lang) == 2 and lang.isalpha():
+        return lang
+    return lang[:2] if len(lang) > 2 else lang
 
 
 def translate_line(
-    translator_pipeline,
+    translator_pipe,
     english_text: str,
     destination_language: str,
 ) -> str:
-    prompt = (
-        f"Translate the following subtitle from English to {destination_language}. "
-        "Keep it natural and concise for subtitles. Return only the translation.\n\n"
-        f"English: {english_text}\n"
-        f"{destination_language}:"
-    )
-    output = translator_pipeline(
-        prompt,
-        max_new_tokens=160,
+    target_lang_code = normalize_lang_code(destination_language)
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "source_lang_code": "en",
+                    "target_lang_code": target_lang_code,
+                    "text": english_text,
+                }
+            ],
+        }
+    ]
+
+    output = translator_pipe(
+        messages,
+        max_new_tokens=200,
         do_sample=False,
-        temperature=0.0,
-        return_full_text=False,
-    )[0]["generated_text"].strip()
-    return output.replace("\n", " ").strip(" \"'")
+    )
+    translated = extract_translated_text(output).replace("\n", " ").strip(" \"'")
+    return translated
 
 
 def transcribe_to_english_segments(
@@ -264,7 +317,7 @@ def main() -> None:
         write_srt(english_srt_path, segments)
 
     print(f"[3/3] Translating subtitles to {destination_language} with {MODEL_ID}...")
-    translator_pipeline = load_translator(local_translator_path)
+    translator_pipe = load_translator(local_translator_path)
     total = len(segments)
     completed_count = get_completed_subtitle_count(translated_srt_path)
     if completed_count > total:
@@ -284,11 +337,17 @@ def main() -> None:
             english_text = str(segment["text"]).strip()
             print(f"[{idx}/{total}] EN: {english_text}")
 
-            translated_text = translate_line(
-                translator_pipeline,
-                english_text,
-                destination_language,
-            )
+            try:
+                translated_text = translate_line(
+                    translator_pipe,
+                    english_text,
+                    destination_language,
+                )
+            except RuntimeError as ex:
+                print(f"[{idx}/{total}] Translation error, using English fallback: {ex}")
+                translated_text = ""
+            if not translated_text:
+                translated_text = english_text
             print(f"[{idx}/{total}] {destination_language}: {translated_text}")
 
             append_srt_entry(target_srt_file, idx, segment, translated_text)
