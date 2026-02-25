@@ -6,12 +6,14 @@ This project creates subtitles in 2 steps:
 2. `google/translategemma-4b-it` translates those subtitles into your target language (Arabic, French, Japanese... your call 😎).
 
 Output files are created in the same folder as your movie, while keeping subtitle timings from Whisper.
+Models are cached locally on first use, then loaded from local files only (offline-ready) 📴
 
 ## Features 🚀
 
 - Transcribe English speech to subtitles using Whisper.
 - Translate subtitle text with `google/translategemma-4b-it`.
 - Preserve exact subtitle timing from the English transcription.
+- Download models once into a local cache and reuse them offline.
 - Interactive mode (asks for input path and language) or CLI arguments.
 
 ## Requirements 🧰
@@ -20,6 +22,15 @@ Output files are created in the same folder as your movie, while keeping subtitl
 - Conda
 - `ffmpeg` installed and available in your `PATH` (needed by Whisper)
 - Enough RAM/VRAM for model loading (especially for `translategemma-4b-it`)
+
+## Offline-First Model Cache 🗃️
+
+The app stores models in a local folder:
+
+- `.local_models/whisper/...`
+- `.local_models/huggingface/translategemma-4b-it/...`
+
+First run downloads what is missing. After that, loading uses local files only, so it works without internet.
 
 ## Environment Setup (Conda) 🐍
 
@@ -57,6 +68,14 @@ Activate the environment first:
 conda activate modelEnv
 ```
 
+### Optional: Pre-download Models Once (Recommended) 📦
+
+```powershell
+python movie_subtitle_translator.py --prepare-models --whisper-model base
+```
+
+Now you can disconnect internet and run normally.
+
 ### Option 1: Interactive Mode
 
 ```powershell
@@ -80,6 +99,12 @@ You can also choose Whisper size:
 python movie_subtitle_translator.py --movie-path "C:\movies\my_film.mp4" --target-language "Arabic" --whisper-model medium
 ```
 
+Custom local model cache directory:
+
+```powershell
+python movie_subtitle_translator.py --movie-path "C:\movies\my_film.mp4" --target-language "Arabic" --models-dir "D:\models_cache"
+```
+
 ## Output Files 📁
 
 If input file is:
@@ -96,6 +121,7 @@ You will get:
 - The script assumes spoken language in media is English for transcription.
 - Translation is done subtitle-by-subtitle to keep timings aligned.
 - Larger Whisper models improve quality but are slower.
+- `.local_models/` is git-ignored, so model weights are never pushed to your repo.
 
 ## Quick Example
 
