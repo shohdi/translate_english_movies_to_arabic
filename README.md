@@ -106,6 +106,26 @@ Custom local model cache directory:
 python movie_subtitle_translator.py --movie-path "C:\movies\my_film.mp4" --target-language "Arabic" --models-dir "D:\models_cache"
 ```
 
+### Output Files 📁
+
+If input file is:
+`C:\movies\my_film.mp4`
+
+You get:
+
+- `C:\movies\my_film.en.srt` (English subtitles from Whisper)
+- `C:\movies\my_film.arabic.srt` (Translated subtitles, same timings)
+
+### Notes 🤓
+
+- The script assumes spoken language in media is English for transcription.
+- Translation is done subtitle-by-subtitle to keep timings aligned.
+- Larger Whisper models improve quality but are slower.
+- `.local_models/` is git-ignored, so model weights are never pushed to your repo.
+- If translation stops mid-run, re-run the same command and it continues from the last saved subtitle.
+- On resume, if `movie.en.srt` already exists, the script reuses it and skips Whisper to keep subtitle order stable.
+
+
 ### EPUB Book Translation 📚
 
 Translate an EPUB book from any language to any language:
@@ -125,26 +145,6 @@ Custom output/progress paths:
 ```powershell
 python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "ar-EG" --output-path "C:\books\my_book_ar.epub" --progress-path "C:\books\my_book_progress.txt"
 ```
-
-### Output Files 📁
-
-If input file is:
-`C:\movies\my_film.mp4`
-
-You get:
-
-- `C:\movies\my_film.en.srt` (English subtitles from Whisper)
-- `C:\movies\my_film.arabic.srt` (Translated subtitles, same timings)
-
-### Notes 🤓
-
-- The script assumes spoken language in media is English for transcription.
-- Translation is done subtitle-by-subtitle to keep timings aligned.
-- Larger Whisper models improve quality but are slower.
-- `.local_models/` is git-ignored, so model weights are never pushed to your repo.
-- If translation stops mid-run, re-run the same command and it continues from the last saved subtitle.
-- On resume, if `movie.en.srt` already exists, the script reuses it and skips Whisper to keep subtitle order stable.
-- EPUB translation uses chunked paragraph translation to stay safe with generation length limits.
 
 ## الدليل العربي 🇸🇦
 
@@ -231,6 +231,16 @@ python movie_subtitle_translator.py --movie-path "C:\movies\my_film.mp4" --targe
 python movie_subtitle_translator.py --movie-path "C:\movies\my_film.mp4" --target-language "Arabic" --models-dir "D:\models_cache"
 ```
 
+### ملفات الإخراج 📁
+
+إذا كان الملف:
+`C:\movies\my_film.mp4`
+
+سيتم إنشاء:
+
+- `C:\movies\my_film.en.srt`
+- `C:\movies\my_film.arabic.srt`
+
 ### ترجمة كتب EPUB 📚
 
 ترجمة كتاب EPUB من أي لغة إلى أي لغة:
@@ -244,16 +254,6 @@ python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-lang
 
 - `C:\books\my_book.arabic.epub`
 - `C:\books\my_book.arabic.progress.txt`
-
-### ملفات الإخراج 📁
-
-إذا كان الملف:
-`C:\movies\my_film.mp4`
-
-سيتم إنشاء:
-
-- `C:\movies\my_film.en.srt`
-- `C:\movies\my_film.arabic.srt`
 
 ## Donation If You Like ❤️
 
