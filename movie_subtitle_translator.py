@@ -26,6 +26,18 @@ def format_srt_timestamp(seconds: float) -> str:
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
 
 
+def parse_srt_timestamp(value: str) -> float:
+    time_part = value.strip()
+    hh_mm_ss, ms = time_part.split(",")
+    hours, minutes, seconds = hh_mm_ss.split(":")
+    return (
+        int(hours) * 3600
+        + int(minutes) * 60
+        + int(seconds)
+        + (int(ms) / 1000.0)
+    )
+
+
 def write_srt(path: Path, segments: Iterable[dict]) -> None:
     with path.open("w", encoding="utf-8") as srt_file:
         for index, segment in enumerate(segments, start=1):
@@ -62,6 +74,32 @@ def get_completed_subtitle_count(srt_path: Path) -> int:
             break
         expected_index += 1
     return expected_index - 1
+
+
+def load_segments_from_srt(srt_path: Path) -> list[dict]:
+    content = srt_path.read_text(encoding="utf-8").strip()
+    if not content:
+        return []
+
+    segments: list[dict] = []
+    blocks = [block.strip() for block in content.split("\n\n") if block.strip()]
+    for block in blocks:
+        lines = [line.rstrip() for line in block.splitlines() if line.strip()]
+        if len(lines) < 3:
+            continue
+        if "-->" not in lines[1]:
+            continue
+
+        start_raw, end_raw = [part.strip() for part in lines[1].split("-->")]
+        text = " ".join(lines[2:]).strip()
+        segments.append(
+            {
+                "start": parse_srt_timestamp(start_raw),
+                "end": parse_srt_timestamp(end_raw),
+                "text": text,
+            }
+        )
+    return segments
 
 
 def ensure_local_translator_path(models_dir: Path) -> Path:
@@ -212,11 +250,18 @@ def main() -> None:
 
     english_srt_path, translated_srt_path = build_output_paths(movie_path, destination_language)
 
-    print(f"[1/3] Transcribing {movie_path.name} with Whisper...")
-    segments = transcribe_to_english_segments(movie_path, args.whisper_model, whisper_cache_dir)
-
-    print(f"[2/3] Writing English subtitles to: {english_srt_path}")
-    write_srt(english_srt_path, segments)
+    if english_srt_path.exists():
+        print(f"[1/3] Reusing existing English subtitles: {english_srt_path}")
+        segments = load_segments_from_srt(english_srt_path)
+        if not segments:
+            raise ValueError(
+                f"English SRT exists but has no valid subtitle entries: {english_srt_path}"
+            )
+    else:
+        print(f"[1/3] Transcribing {movie_path.name} with Whisper...")
+        segments = transcribe_to_english_segments(movie_path, args.whisper_model, whisper_cache_dir)
+        print(f"[2/3] Writing English subtitles to: {english_srt_path}")
+        write_srt(english_srt_path, segments)
 
     print(f"[3/3] Translating subtitles to {destination_language} with {MODEL_ID}...")
     translator_pipeline = load_translator(local_translator_path)
