@@ -35,6 +35,35 @@ def write_srt(path: Path, segments: Iterable[dict]) -> None:
             srt_file.write(f"{index}\n{start} --> {end}\n{text}\n\n")
 
 
+def append_srt_entry(srt_file, index: int, segment: dict, text: str) -> None:
+    start = format_srt_timestamp(float(segment["start"]))
+    end = format_srt_timestamp(float(segment["end"]))
+    srt_file.write(f"{index}\n{start} --> {end}\n{text.strip()}\n\n")
+    srt_file.flush()
+
+
+def get_completed_subtitle_count(srt_path: Path) -> int:
+    if not srt_path.exists():
+        return 0
+
+    content = srt_path.read_text(encoding="utf-8").strip()
+    if not content:
+        return 0
+
+    blocks = [block.strip() for block in content.split("\n\n") if block.strip()]
+    expected_index = 1
+    for block in blocks:
+        lines = [line for line in block.splitlines() if line.strip()]
+        if len(lines) < 3:
+            break
+        if lines[0].strip() != str(expected_index):
+            break
+        if "-->" not in lines[1]:
+            break
+        expected_index += 1
+    return expected_index - 1
+
+
 def ensure_local_translator_path(models_dir: Path) -> Path:
     local_model_dir = models_dir / "huggingface" / "translategemma-4b-it"
     local_model_dir.mkdir(parents=True, exist_ok=True)
@@ -191,25 +220,35 @@ def main() -> None:
 
     print(f"[3/3] Translating subtitles to {destination_language} with {MODEL_ID}...")
     translator_pipeline = load_translator(local_translator_path)
-    translated_segments: list[dict] = []
     total = len(segments)
-    for idx, segment in enumerate(segments, start=1):
-        translated_text = translate_line(
-            translator_pipeline,
-            str(segment["text"]).strip(),
-            destination_language,
+    completed_count = get_completed_subtitle_count(translated_srt_path)
+    if completed_count > total:
+        raise ValueError(
+            f"Existing translated file has {completed_count} subtitles but transcription has {total}. "
+            "Please remove the translated .srt or use another output name."
         )
-        translated_segments.append(
-            {
-                "start": segment["start"],
-                "end": segment["end"],
-                "text": translated_text,
-            }
-        )
-        if idx % 20 == 0 or idx == total:
-            print(f"Translated {idx}/{total} subtitles...")
+    if completed_count > 0:
+        print(f"Resuming from subtitle {completed_count + 1}/{total} using existing file: {translated_srt_path}")
 
-    write_srt(translated_srt_path, translated_segments)
+    write_mode = "a" if completed_count > 0 else "w"
+    with translated_srt_path.open(write_mode, encoding="utf-8") as target_srt_file:
+        for idx, segment in enumerate(segments, start=1):
+            if idx <= completed_count:
+                continue
+
+            english_text = str(segment["text"]).strip()
+            print(f"[{idx}/{total}] EN: {english_text}")
+
+            translated_text = translate_line(
+                translator_pipeline,
+                english_text,
+                destination_language,
+            )
+            print(f"[{idx}/{total}] {destination_language}: {translated_text}")
+
+            append_srt_entry(target_srt_file, idx, segment, translated_text)
+            print(f"[{idx}/{total}] Saved to {translated_srt_path}")
+
     print(f"Done. English SRT: {english_srt_path}")
     print(f"Done. {destination_language} SRT: {translated_srt_path}")
 
