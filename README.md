@@ -152,6 +152,12 @@ Better context/gender consistency (recommended):
 python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic" --context-window 4 --character-glossary "samples\character_glossary.sample.json" --chapter-context "samples\chapter_context.sample.json" --consistency-pass
 ```
 
+Language-learning mode (translated paragraph + original paragraph):
+
+```powershell
+python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic" --append-original
+```
+
 JSON samples included:
 
 - `samples\character_glossary.sample.json`
@@ -270,6 +276,12 @@ python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-lang
 
 ```powershell
 python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic" --context-window 4 --character-glossary "samples\character_glossary.sample.json" --chapter-context "samples\chapter_context.sample.json" --consistency-pass
+```
+
+وضع تعلم اللغة (الترجمة ثم الفقرة الأصلية):
+
+```powershell
+python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic" --append-original
 ```
 
 ملفات JSON تجريبية موجودة داخل المشروع:

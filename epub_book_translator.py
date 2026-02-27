@@ -345,6 +345,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run a second pass per paragraph to improve gender/pronoun consistency.",
     )
+    parser.add_argument(
+        "--append-original",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Append the original paragraph after the translated paragraph "
+            "(useful for language learning). Default: enabled. Use --no-append-original to disable."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -359,6 +368,12 @@ def load_json_dict(path_str: str | None) -> dict:
     if not isinstance(data, dict):
         raise ValueError(f"JSON file must contain an object/map at top level: {path}")
     return data
+
+
+def build_output_paragraph(translated_text: str, original_text: str, append_original: bool) -> str:
+    if not append_original:
+        return translated_text
+    return f"{translated_text}\n\n[Original]\n{original_text}"
 
 
 def main() -> None:
@@ -452,11 +467,16 @@ def main() -> None:
                 )
             if not translated_text:
                 translated_text = original_text
+            output_text = build_output_paragraph(
+                translated_text,
+                original_text,
+                args.append_original,
+            )
             print(f"[{total_count}] DST: {translated_text[:140]}")
             paragraph.clear()
-            paragraph.append(translated_text)
-            append_progress(progress_path, key, translated_text)
-            progress[key] = translated_text
+            paragraph.append(output_text)
+            append_progress(progress_path, key, output_text)
+            progress[key] = output_text
             doc_previous_translations.append(translated_text)
             translated_count += 1
             print(f"[{total_count}] Saved progress to: {progress_path}")
