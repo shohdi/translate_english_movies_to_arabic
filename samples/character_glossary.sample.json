@@ -1,0 +1,17 @@
+{
+  "Robert Langdon": {
+    "gender": "male",
+    "target_form": "روبرت لانغدون",
+    "note": "Use masculine pronouns and verb agreement in Arabic."
+  },
+  "Sophie Neveu": {
+    "gender": "female",
+    "target_form": "صوفي نوفو",
+    "note": "Use feminine pronouns and verb agreement in Arabic."
+  },
+  "The Director": {
+    "gender": "male",
+    "target_form": "المدير",
+    "note": "Keep title consistent across chapters."
+  }
+}
