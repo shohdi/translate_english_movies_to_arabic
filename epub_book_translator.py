@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import json
 from pathlib import Path
 from typing import Iterable
 
@@ -17,6 +18,7 @@ from transformers import pipeline
 
 MODEL_ID = "google/translategemma-4b-it"
 DEFAULT_MODELS_DIR = Path(__file__).resolve().parent / ".local_models"
+ORIGINAL_MARKER = "\n[Original]\n"
 LANGUAGE_CODE_MAP = {
     "arabic": "ar-EG",
     "english": "en",
@@ -132,6 +134,78 @@ def translate_chunk(
     return extract_translated_text(output).replace("\n", " ").strip(" \"'")
 
 
+def build_context_block(previous_translations: list[str], context_window: int) -> str:
+    if context_window <= 0 or not previous_translations:
+        return ""
+    recent = previous_translations[-context_window:]
+    lines = [f"- {line}" for line in recent if line.strip()]
+    if not lines:
+        return ""
+    return "Recent translated context:\n" + "\n".join(lines)
+
+
+def build_glossary_block(glossary: dict) -> str:
+    if not glossary:
+        return ""
+    lines: list[str] = []
+    for name, meta in glossary.items():
+        if isinstance(meta, dict):
+            gender = str(meta.get("gender", "")).strip()
+            target_form = str(meta.get("target_form", "")).strip()
+            note = str(meta.get("note", "")).strip()
+            parts = [p for p in [f"name={name}", f"gender={gender}", f"target_form={target_form}", f"note={note}"] if p and not p.endswith("=")]
+            if parts:
+                lines.append("- " + ", ".join(parts))
+        else:
+            lines.append(f"- name={name}, note={meta}")
+    if not lines:
+        return ""
+    return "Character glossary (keep these consistent):\n" + "\n".join(lines)
+
+
+def build_chapter_note(chapter_context: dict, file_name: str) -> str:
+    if not chapter_context:
+        return ""
+    note = chapter_context.get(file_name) or chapter_context.get("__default__")
+    if not note:
+        return ""
+    return f"Chapter context note:\n{note}"
+
+
+def translate_paragraph_with_context(
+    translator_pipe,
+    paragraph_text: str,
+    source_lang_code: str,
+    target_lang_code: str,
+    previous_translations: list[str],
+    context_window: int,
+    glossary: dict,
+    chapter_note: str,
+) -> str:
+    context_block = build_context_block(previous_translations, context_window)
+    glossary_block = build_glossary_block(glossary)
+    sections = [
+        "Translate ONLY the final paragraph below.",
+        "Keep meaning accurate and natural.",
+        "Preserve gender/pronoun consistency using context and glossary.",
+        "Return only translated text without explanations.",
+    ]
+    if chapter_note:
+        sections.append(chapter_note)
+    if glossary_block:
+        sections.append(glossary_block)
+    if context_block:
+        sections.append(context_block)
+    sections.append(f"Paragraph to translate:\n{paragraph_text}")
+    full_text = "\n\n".join(sections)
+    return translate_chunk(
+        translator_pipe,
+        full_text,
+        source_lang_code,
+        target_lang_code,
+    )
+
+
 def translate_paragraph(
     translator_pipe,
     paragraph_text: str,
@@ -149,6 +223,43 @@ def translate_paragraph(
         )
         translated_chunks.append(translated if translated else chunk)
     return " ".join(translated_chunks).strip()
+
+
+def refine_translation_consistency(
+    translator_pipe,
+    source_text: str,
+    translated_text: str,
+    source_lang_code: str,
+    target_lang_code: str,
+    previous_translations: list[str],
+    context_window: int,
+    glossary: dict,
+    chapter_note: str,
+) -> str:
+    context_block = build_context_block(previous_translations, context_window)
+    glossary_block = build_glossary_block(glossary)
+    parts = [
+        "Improve the translated paragraph only if needed.",
+        "Focus on pronouns, gender agreement, and character consistency.",
+        "Do not add or remove information.",
+        "Return only the revised translated paragraph.",
+        f"Source paragraph:\n{source_text}",
+        f"Current translation:\n{translated_text}",
+    ]
+    if chapter_note:
+        parts.append(chapter_note)
+    if glossary_block:
+        parts.append(glossary_block)
+    if context_block:
+        parts.append(context_block)
+    review_prompt = "\n\n".join(parts)
+    reviewed = translate_chunk(
+        translator_pipe,
+        review_prompt,
+        source_lang_code,
+        target_lang_code,
+    )
+    return reviewed if reviewed else translated_text
 
 
 def parse_progress(progress_path: Path) -> dict[str, str]:
@@ -216,7 +327,71 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Download required model to local storage and exit.",
     )
+    parser.add_argument(
+        "--context-window",
+        type=int,
+        default=4,
+        help="Number of previous translated paragraphs to include as context (default: 4).",
+    )
+    parser.add_argument(
+        "--character-glossary",
+        help="Path to JSON glossary for names/gender/target forms.",
+    )
+    parser.add_argument(
+        "--chapter-context",
+        help="Path to JSON map of chapter file name -> context note.",
+    )
+    parser.add_argument(
+        "--consistency-pass",
+        action="store_true",
+        help="Run a second pass per paragraph to improve gender/pronoun consistency.",
+    )
+    parser.add_argument(
+        "--append-original",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Append the original paragraph after the translated paragraph "
+            "(useful for language learning). Default: enabled. Use --no-append-original to disable."
+        ),
+    )
     return parser.parse_args()
+
+
+def load_json_dict(path_str: str | None) -> dict:
+    if not path_str:
+        return {}
+    path = Path(path_str).expanduser().resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"JSON file does not exist: {path}")
+    with path.open("r", encoding="utf-8") as file:
+        data = json.load(file)
+    if not isinstance(data, dict):
+        raise ValueError(f"JSON file must contain an object/map at top level: {path}")
+    return data
+
+
+def build_output_paragraph(translated_text: str, original_text: str, append_original: bool) -> str:
+    if not append_original:
+        return translated_text
+    return f"{translated_text}{ORIGINAL_MARKER}{original_text}"
+
+
+def set_paragraph_content(soup: BeautifulSoup, paragraph, text: str) -> None:
+    paragraph.clear()
+    if ORIGINAL_MARKER not in text:
+        paragraph.append(text)
+        return
+
+    translated_text, original_text = text.split(ORIGINAL_MARKER, 1)
+    paragraph.append(translated_text.strip())
+    paragraph.append(soup.new_tag("br"))
+    paragraph.append(soup.new_tag("br"))
+    label = soup.new_tag("span")
+    label.string = "[Original]"
+    paragraph.append(label)
+    paragraph.append(soup.new_tag("br"))
+    paragraph.append(original_text.strip())
 
 
 def main() -> None:
@@ -240,6 +415,8 @@ def main() -> None:
 
     target_lang_code = normalize_lang_code(target_language)
     source_lang_code = normalize_lang_code(source_language)
+    glossary = load_json_dict(args.character_glossary)
+    chapter_context = load_json_dict(args.chapter_context)
 
     output_path = (
         Path(args.output_path).expanduser().resolve()
@@ -268,6 +445,8 @@ def main() -> None:
         doc_index += 1
         soup = BeautifulSoup(item.get_content(), "lxml")
         paragraph_index = 0
+        doc_previous_translations: list[str] = []
+        chapter_note = build_chapter_note(chapter_context, item.file_name)
         for paragraph in soup.find_all("p"):
             original_text = paragraph.get_text(" ", strip=True)
             if not original_text:
@@ -276,24 +455,45 @@ def main() -> None:
             total_count += 1
             key = f"{item.file_name}::d{doc_index}_p{paragraph_index}"
             if key in progress:
-                paragraph.clear()
-                paragraph.append(progress[key])
+                set_paragraph_content(soup, paragraph, progress[key])
+                doc_previous_translations.append(progress[key])
                 continue
 
             print(f"[{total_count}] SRC: {original_text[:140]}")
-            translated_text = translate_paragraph(
+            translated_text = translate_paragraph_with_context(
                 translator_pipe,
                 original_text,
                 source_lang_code,
                 target_lang_code,
+                doc_previous_translations,
+                args.context_window,
+                glossary,
+                chapter_note,
             )
+            if args.consistency_pass and translated_text:
+                translated_text = refine_translation_consistency(
+                    translator_pipe,
+                    original_text,
+                    translated_text,
+                    source_lang_code,
+                    target_lang_code,
+                    doc_previous_translations,
+                    args.context_window,
+                    glossary,
+                    chapter_note,
+                )
             if not translated_text:
                 translated_text = original_text
+            output_text = build_output_paragraph(
+                translated_text,
+                original_text,
+                args.append_original,
+            )
             print(f"[{total_count}] DST: {translated_text[:140]}")
-            paragraph.clear()
-            paragraph.append(translated_text)
-            append_progress(progress_path, key, translated_text)
-            progress[key] = translated_text
+            set_paragraph_content(soup, paragraph, output_text)
+            append_progress(progress_path, key, output_text)
+            progress[key] = output_text
+            doc_previous_translations.append(translated_text)
             translated_count += 1
             print(f"[{total_count}] Saved progress to: {progress_path}")
 

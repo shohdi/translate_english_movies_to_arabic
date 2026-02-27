@@ -146,6 +146,23 @@ Custom output/progress paths:
 python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "ar-EG" --output-path "C:\books\my_book_ar.epub" --progress-path "C:\books\my_book_progress.txt"
 ```
 
+Better context/gender consistency (recommended):
+
+```powershell
+python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic" --context-window 4 --character-glossary "samples\character_glossary.sample.json" --chapter-context "samples\chapter_context.sample.json" --consistency-pass
+```
+
+Language-learning mode (translated paragraph + original paragraph):
+
+```powershell
+python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic" --append-original
+```
+
+JSON samples included:
+
+- `samples\character_glossary.sample.json`
+- `samples\chapter_context.sample.json`
+
 ## الدليل العربي 🇸🇦
 
 هذا المشروع ينشئ الترجمة على مرحلتين:
@@ -254,6 +271,23 @@ python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-lang
 
 - `C:\books\my_book.arabic.epub`
 - `C:\books\my_book.arabic.progress.txt`
+
+تحسين فهم السياق والجنس اللغوي (مفضل):
+
+```powershell
+python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic" --context-window 4 --character-glossary "samples\character_glossary.sample.json" --chapter-context "samples\chapter_context.sample.json" --consistency-pass
+```
+
+وضع تعلم اللغة (الترجمة ثم الفقرة الأصلية):
+
+```powershell
+python epub_book_translator.py --epub-path "C:\books\my_book.epub" --source-language "en" --target-language "Arabic" --append-original
+```
+
+ملفات JSON تجريبية موجودة داخل المشروع:
+
+- `samples\character_glossary.sample.json`
+- `samples\chapter_context.sample.json`
 
 ## Donation If You Like ❤️
 
