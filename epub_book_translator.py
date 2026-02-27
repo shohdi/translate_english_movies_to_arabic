@@ -18,6 +18,7 @@ from transformers import pipeline
 
 MODEL_ID = "google/translategemma-4b-it"
 DEFAULT_MODELS_DIR = Path(__file__).resolve().parent / ".local_models"
+ORIGINAL_MARKER = "\n[Original]\n"
 LANGUAGE_CODE_MAP = {
     "arabic": "ar-EG",
     "english": "en",
@@ -373,7 +374,24 @@ def load_json_dict(path_str: str | None) -> dict:
 def build_output_paragraph(translated_text: str, original_text: str, append_original: bool) -> str:
     if not append_original:
         return translated_text
-    return f"{translated_text}\n\n[Original]\n{original_text}"
+    return f"{translated_text}{ORIGINAL_MARKER}{original_text}"
+
+
+def set_paragraph_content(soup: BeautifulSoup, paragraph, text: str) -> None:
+    paragraph.clear()
+    if ORIGINAL_MARKER not in text:
+        paragraph.append(text)
+        return
+
+    translated_text, original_text = text.split(ORIGINAL_MARKER, 1)
+    paragraph.append(translated_text.strip())
+    paragraph.append(soup.new_tag("br"))
+    paragraph.append(soup.new_tag("br"))
+    label = soup.new_tag("span")
+    label.string = "[Original]"
+    paragraph.append(label)
+    paragraph.append(soup.new_tag("br"))
+    paragraph.append(original_text.strip())
 
 
 def main() -> None:
@@ -437,8 +455,7 @@ def main() -> None:
             total_count += 1
             key = f"{item.file_name}::d{doc_index}_p{paragraph_index}"
             if key in progress:
-                paragraph.clear()
-                paragraph.append(progress[key])
+                set_paragraph_content(soup, paragraph, progress[key])
                 doc_previous_translations.append(progress[key])
                 continue
 
@@ -473,8 +490,7 @@ def main() -> None:
                 args.append_original,
             )
             print(f"[{total_count}] DST: {translated_text[:140]}")
-            paragraph.clear()
-            paragraph.append(output_text)
+            set_paragraph_content(soup, paragraph, output_text)
             append_progress(progress_path, key, output_text)
             progress[key] = output_text
             doc_previous_translations.append(translated_text)

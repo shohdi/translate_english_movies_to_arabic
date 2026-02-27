@@ -10,6 +10,8 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from ebooklib import ITEM_DOCUMENT, epub
 
+ORIGINAL_MARKER = "\n[Original]\n"
+
 
 def parse_progress(progress_path: Path) -> dict[str, str]:
     result: dict[str, str] = {}
@@ -81,6 +83,23 @@ def ensure_book_uids(book: epub.EpubBook) -> None:
     _fix_toc_node(book.toc)
 
 
+def set_paragraph_content(soup: BeautifulSoup, paragraph, text: str) -> None:
+    paragraph.clear()
+    if ORIGINAL_MARKER not in text:
+        paragraph.append(text)
+        return
+
+    translated_text, original_text = text.split(ORIGINAL_MARKER, 1)
+    paragraph.append(translated_text.strip())
+    paragraph.append(soup.new_tag("br"))
+    paragraph.append(soup.new_tag("br"))
+    label = soup.new_tag("span")
+    label.string = "[Original]"
+    paragraph.append(label)
+    paragraph.append(soup.new_tag("br"))
+    paragraph.append(original_text.strip())
+
+
 def main() -> None:
     args = parse_args()
     epub_path = Path(args.epub_path).expanduser().resolve()
@@ -122,8 +141,7 @@ def main() -> None:
             key = f"{item.file_name}::d{doc_index}_p{paragraph_index}"
 
             if key in progress:
-                paragraph.clear()
-                paragraph.append(progress[key])
+                set_paragraph_content(soup, paragraph, progress[key])
                 applied += 1
             elif args.mark_pending:
                 paragraph.clear()
