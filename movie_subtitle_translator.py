@@ -142,17 +142,15 @@ def load_translator(local_model_path: Path):
             "text-generation",
             model=str(local_model_path),
             device=device,
-            torch_dtype=dtype,
-            model_kwargs={"local_files_only": True},
+            dtype=dtype,
         )
     except TypeError:
-        # Compatibility fallback for transformers versions that expect dtype.
+        # Compatibility fallback for transformers versions that expect torch_dtype.
         return pipeline(
             "text-generation",
             model=str(local_model_path),
             device=device,
-            dtype=dtype,
-            model_kwargs={"local_files_only": True},
+            torch_dtype=dtype,
         )
 
 def extract_translated_text(pipe_output) -> str:

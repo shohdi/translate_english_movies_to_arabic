@@ -61,16 +61,14 @@ def load_translator(local_model_path: Path):
             "text-generation",
             model=str(local_model_path),
             device=device,
-            torch_dtype=dtype,
-            model_kwargs={"local_files_only": True},
+            dtype=dtype,
         )
     except TypeError:
         return pipeline(
             "text-generation",
             model=str(local_model_path),
             device=device,
-            dtype=dtype,
-            model_kwargs={"local_files_only": True},
+            torch_dtype=dtype,
         )
 
 
@@ -443,7 +441,7 @@ def main() -> None:
 
     for item in iter_document_items(book):
         doc_index += 1
-        soup = BeautifulSoup(item.get_content(), "lxml")
+        soup = BeautifulSoup(item.get_content(), "xml")
         paragraph_index = 0
         doc_previous_translations: list[str] = []
         chapter_note = build_chapter_note(chapter_context, item.file_name)
